@@ -14,7 +14,7 @@ import requests
 import requests.exceptions
 
 
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 _logger = logging.getLogger()
 
@@ -25,7 +25,7 @@ def main():
     arg_parser.add_argument(
         'output_dir', help='Path of output directory')
     arg_parser.add_argument(
-        '--interval', type=int, default=290,
+        '--interval', type=int, default=301,
         help='Number of seconds between each grab')
     arg_parser.add_argument(
         '--subdir', action='store_true',
