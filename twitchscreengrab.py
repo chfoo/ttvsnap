@@ -14,7 +14,7 @@ import requests
 import requests.exceptions
 
 
-__version__ = '1.0'
+__version__ = '1.0.1'
 
 _logger = logging.getLogger()
 
@@ -103,16 +103,23 @@ class Grabber(object):
 
             time.sleep(self._interval)
 
+    def _new_headers(self):
+        return {
+            'user-agent':
+                'python-requests/{requests_ver} ttvsnap/{this_ver}'
+                .format(requests_ver=requests.__version__,
+                        this_ver=__version__)
+        }
+
     def _fetch_stream_object(self):
+        headers = self._new_headers()
         url = 'https://api.twitch.tv/kraken/streams/{}?api_version=3'.format(self._channel)
-        response = requests.get(url, timeout=60)
+        response = requests.get(url, timeout=60, headers=headers)
         doc = response.json()
         return doc
 
     def _fetch_image_and_save(self, url):
-        headers = {
-            'user-agent': 'python-requests/{}'.format(requests.__version__)
-        }
+        headers = self._new_headers()
 
         if self._last_file_date:
             headers['if-modified-since'] = self._last_file_date
