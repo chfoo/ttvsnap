@@ -14,7 +14,7 @@ import requests
 import requests.exceptions
 
 
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 
 _logger = logging.getLogger()
 
@@ -71,7 +71,7 @@ class Grabber(object):
         while True:
             try:
                 doc = self._fetch_stream_object()
-            except requests.exceptions.RequestException:
+            except (requests.exceptions.RequestException, ValueError):
                 _logger.exception('Error fetching stream object.')
                 time.sleep(ERROR_SLEEP_TIME)
                 continue
