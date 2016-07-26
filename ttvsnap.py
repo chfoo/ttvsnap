@@ -15,8 +15,10 @@ import requests.exceptions
 
 
 __version__ = '1.0.3'
+__version__ = '1.0.4'
 
 _logger = logging.getLogger()
+
 
 def main():
     arg_parser = argparse.ArgumentParser()
@@ -33,6 +35,10 @@ def main():
     arg_parser.add_argument(
         '--thumbnail', action='store_true',
         help='Create thumbnails using Imagemagick "convert" command.')
+    arg_parser.add_argument(
+        '--client-id',
+        help='Twitch Client ID'
+    )
 
     args = arg_parser.parse_args()
     logging.basicConfig(level=logging.INFO)
@@ -46,7 +52,7 @@ def main():
     subprocess.check_call(['convert', '-version'])
 
     grabber = Grabber(args.channel_name, args.output_dir, args.interval,
-                      args.subdir, args.thumbnail)
+                      args.subdir, args.thumbnail, args.client_id)
     grabber.run()
 
 
@@ -59,15 +65,22 @@ ERROR_SLEEP_TIME = 90
 
 class Grabber(object):
     def __init__(self, channel, output_dir, interval, subdir=False,
-                 thumbnail=False):
+                 thumbnail=False, client_id=None):
         self._channel = channel
         self._output_dir = output_dir
         self._interval = interval
         self._subdir = subdir
         self._thumbnail = thumbnail
+        self._client_id = client_id
         self._last_file_date = None
 
     def run(self):
+        try:
+            if self._client_id and not self._check_client_id():
+                _logger.warning('Client ID is not valid')
+        except (requests.exceptions.RequestException, ValueError):
+            _logger.exception('Could not check Client ID validity')
+
         while True:
             try:
                 doc = self._fetch_stream_object()
@@ -104,12 +117,23 @@ class Grabber(object):
             time.sleep(self._interval)
 
     def _new_headers(self):
-        return {
+        headers = {
             'user-agent':
                 'python-requests/{requests_ver} ttvsnap/{this_ver}'
                 .format(requests_ver=requests.__version__,
                         this_ver=__version__)
         }
+        if self._client_id:
+            headers['Client-ID'] = self._client_id
+
+        return headers
+
+    def _check_client_id(self):
+        headers = self._new_headers()
+        url = 'https://api.twitch.tv/kraken/?api_version=3'
+        response = requests.get(url, timeout=60, headers=headers)
+        doc = response.json()
+        return doc['identified']
 
     def _fetch_stream_object(self):
         headers = self._new_headers()
