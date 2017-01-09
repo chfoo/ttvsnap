@@ -14,7 +14,7 @@ import requests
 import requests.exceptions
 
 
-__version__ = '1.0.4'
+__version__ = '1.0.5'
 
 _logger = logging.getLogger()
 
@@ -101,7 +101,9 @@ class Grabber(object):
                     time.sleep(ERROR_SLEEP_TIME)
                     continue
 
-                url = url.replace('{width}', '0').replace('{height}', '0')
+                height = doc['stream']['video_height']
+
+                url = url.replace('{width}', '0').replace('{height}', str(height))
 
                 try:
                     path = self._fetch_image_and_save(url)
