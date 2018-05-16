@@ -14,7 +14,7 @@ import requests
 import requests.exceptions
 
 
-__version__ = '1.0.5'
+__version__ = '1.0.6'
 
 _logger = logging.getLogger()
 
@@ -93,17 +93,15 @@ class Grabber(object):
                 time.sleep(ERROR_SLEEP_TIME)
                 continue
 
-            if doc.get('stream'):
+            if doc.get('data'):
                 try:
-                    url = doc['stream']['preview']['template']
+                    url = doc['data'][0]['thumbnail_url']
                 except KeyError:
                     _logger.exception('Unexpected document format.')
                     time.sleep(ERROR_SLEEP_TIME)
                     continue
 
-                height = doc['stream']['video_height']
-
-                url = url.replace('{width}', '0').replace('{height}', str(height))
+                url = url.replace('{width}', '0').replace('{height}', '0')
 
                 try:
                     path = self._fetch_image_and_save(url)
@@ -131,14 +129,14 @@ class Grabber(object):
 
     def _check_client_id(self):
         headers = self._new_headers()
-        url = 'https://api.twitch.tv/kraken/?api_version=3'
+        url = 'https://api.twitch.tv/helix/users?login=jtv'
         response = requests.get(url, timeout=60, headers=headers)
         doc = response.json()
-        return doc['identified']
+        return 'data' in doc
 
     def _fetch_stream_object(self):
         headers = self._new_headers()
-        url = 'https://api.twitch.tv/kraken/streams/{}?api_version=3'.format(self._channel)
+        url = 'https://api.twitch.tv/helix/streams?user_login={}'.format(self._channel)
         response = requests.get(url, timeout=60, headers=headers)
         doc = response.json()
         return doc
@@ -158,10 +156,20 @@ class Grabber(object):
         if response.status_code != 200:
             raise APIError('Image status code: %s', response.status_code)
 
-        self._last_file_date = response.headers['last-modified']
-
-        datetime_obj = email.utils.parsedate_to_datetime(
-            response.headers['last-modified']).astimezone(datetime.timezone.utc)
+        if 'last-modified' in response.headers:
+            self._last_file_date = response.headers['last-modified']
+            datetime_obj = email.utils.parsedate_to_datetime(
+                response.headers['last-modified']
+            ).astimezone(datetime.timezone.utc)
+        elif 'age' in response.headers and 'date' in response.headers:
+            current_datetime_obj = email.utils.parsedate_to_datetime(
+                response.headers['date']
+            ).astimezone(datetime.timezone.utc)
+            age_int = int(response.headers['age'])
+            datetime_obj = current_datetime_obj - datetime.timedelta(seconds=age_int)
+            self._last_file_date = email.utils.format_datetime(datetime_obj, True)
+        else:
+            raise APIError("Could not get date of image")
 
         extension = url.rsplit('.', 1)[-1] or 'bin'
 
