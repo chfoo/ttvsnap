@@ -1,5 +1,5 @@
 '''Save Twitch screenshots using Twitch API preview thumbnails'''
-# Copyright 2015-2016 Christopher Foo. License: MIT.
+# Copyright 2015-2018 Christopher Foo. License: MIT.
 
 import argparse
 import datetime
@@ -14,8 +14,7 @@ import time
 import requests
 import requests.exceptions
 
-
-__version__ = '1.0.6'
+__version__ = '1.0.7'
 
 _logger = logging.getLogger()
 
