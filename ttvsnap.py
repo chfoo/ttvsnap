@@ -3,12 +3,13 @@
 
 import argparse
 import datetime
+import email.utils
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
-import email.utils
 
 import requests
 import requests.exceptions
@@ -167,6 +168,16 @@ class Grabber(object):
             ).astimezone(datetime.timezone.utc)
             age_int = int(response.headers['age'])
             datetime_obj = current_datetime_obj - datetime.timedelta(seconds=age_int)
+            self._last_file_date = email.utils.format_datetime(datetime_obj, True)
+        elif 'expires' in response.headers \
+                and 'cache-control' in response.headers \
+                and 'max-age' in response.headers['cache-control']:
+            match = re.match(r'max-age=(\d+)', response.headers['cache-control'])
+            age_int = int(match.group(1))
+            expires_date_obj = email.utils.parsedate_to_datetime(
+                response.headers['expires']
+            ).astimezone(datetime.timezone.utc)
+            datetime_obj = expires_date_obj - datetime.timedelta(seconds=age_int)
             self._last_file_date = email.utils.format_datetime(datetime_obj, True)
         else:
             raise APIError("Could not get date of image")
