@@ -1,5 +1,5 @@
 '''Save Twitch screenshots using Twitch API preview thumbnails'''
-# Copyright 2015-2018 Christopher Foo. License: MIT.
+# Copyright 2015-2018,2020 Christopher Foo. License: MIT.
 
 import argparse
 import datetime
@@ -14,7 +14,7 @@ import time
 import requests
 import requests.exceptions
 
-__version__ = '1.0.7'
+__version__ = '1.1.0'
 
 _logger = logging.getLogger()
 
@@ -35,9 +35,14 @@ def main():
         '--thumbnail', action='store_true',
         help='Create thumbnails using Imagemagick "convert" command.')
     arg_parser.add_argument(
-        '--client-id',
-        help='Twitch Client ID'
-    )
+        '--client-id', required=True,
+        help='Twitch Client ID')
+    arg_parser.add_argument(
+        '--client-secret-file', required=True, type=argparse.FileType('r'),
+        help='Filename that contains Client Secret for the given Client ID')
+    arg_parser.add_argument(
+        '--cache-dir', required=True,
+        help='Directory path where the script can write temporary secrets such as tokens')
 
     args = arg_parser.parse_args()
     logging.basicConfig(level=logging.INFO)
@@ -45,13 +50,15 @@ def main():
     if not os.path.isdir(args.output_dir):
         sys.exit('Output directory specified is not valid.')
 
+    if not os.path.isdir(args.cache_dir):
+        sys.exit('Cache directory specified is not valid.')
+
     if args.interval < 60:
         sys.exit('Interval cannot be less than 60 seconds.')
 
     subprocess.check_call(['convert', '-version'])
 
-    grabber = Grabber(args.channel_name, args.output_dir, args.interval,
-                      args.subdir, args.thumbnail, args.client_id)
+    grabber = Grabber(args)
     grabber.run()
 
 
@@ -63,29 +70,66 @@ ERROR_SLEEP_TIME = 90
 
 
 class Grabber(object):
-    def __init__(self, channel, output_dir, interval, subdir=False,
-                 thumbnail=False, client_id=None):
-        self._channel = channel
-        self._output_dir = output_dir
-        self._interval = interval
-        self._subdir = subdir
-        self._thumbnail = thumbnail
-        self._client_id = client_id
+    def __init__(self, args):
+        self._channel = args.channel_name
+        self._output_dir = args.output_dir
+        self._interval = args.interval
+        self._subdir = args.subdir
+        self._thumbnail = args.thumbnail
+        self._client_id = args.client_id
+        self._client_secret = args.client_secret_file.read().strip()
+        self._cache_dir = args.cache_dir
+        self._access_token = None
         self._last_file_date = None
 
     def run(self):
-        try:
-            if self._client_id and not self._check_client_id():
-                _logger.warning('Client ID is not valid')
-        except (requests.exceptions.RequestException, ValueError):
-            _logger.exception('Could not check Client ID validity')
+        self._load_access_token()
+
+        if not self._access_token:
+            try:
+                _logger.info('Fetching access token')
+                response = self._fetch_access_token()
+            except (APIError, requests.exceptions.RequestException):
+                _logger.exception('Request to get access token failed')
+
+        if not self._access_token:
+            doc = response.json()
+            _logger.error('Authentication error %s %s %s',
+                doc.get('status'), doc.get('error'), doc.get('message'))
+        else:
+            self._save_acesss_token()
+
+        if self._check_client_id():
+            _logger.info('Authentication looks OK')
+        else:
+            _logger.warning('Authenticated failed.')
 
         while True:
             try:
-                doc = self._fetch_stream_object()
+                response = self._fetch_stream_object()
+                doc = response.json()
             except (requests.exceptions.RequestException, ValueError):
                 _logger.exception('Error fetching stream object.')
                 time.sleep(ERROR_SLEEP_TIME)
+                continue
+
+            if self._is_bad_token(response):
+                _logger.info('Fetching access token')
+
+                try:
+                    response = self._fetch_access_token()
+                except (APIError, requests.exceptions.RequestException):
+                    _logger.exception('Request to get access token failed')
+                    time.sleep(ERROR_SLEEP_TIME)
+                    continue
+
+                if not self._access_token:
+                    doc = response.json()
+                    _logger.error('Authentication error %s %s %s',
+                        doc.get('status'), doc.get('error'), doc.get('message'))
+                    time.sleep(ERROR_SLEEP_TIME)
+                else:
+                    self._save_acesss_token()
                 continue
 
             if 'error' in doc:
@@ -125,6 +169,9 @@ class Grabber(object):
         if self._client_id:
             headers['Client-ID'] = self._client_id
 
+        if self._access_token:
+            headers['Authorization'] = 'Bearer: {token}'.format(token=self._access_token)
+
         return headers
 
     def _check_client_id(self):
@@ -134,12 +181,43 @@ class Grabber(object):
         doc = response.json()
         return 'data' in doc
 
+    def _load_access_token(self):
+        path = os.path.join(self._cache_dir, 'access_token.txt')
+
+        if os.path.exists(path):
+            with open(path, 'r') as file:
+                self._access_token = file.read().strip()
+
+    def _save_acesss_token(self):
+        path = os.path.join(self._cache_dir, 'access_token.txt')
+        with open(path, 'w') as file:
+            file.write(self._access_token or '')
+
+    def _fetch_access_token(self):
+        self._access_token = None
+        headers = self._new_headers()
+        url = 'https://id.twitch.tv/oauth2/token'
+        data = {
+            'client_id': self._client_id,
+            'client_secret': self._client_secret,
+            'grant_type': 'client_credentials',
+            'scope': ''
+        }
+        response = requests.post(url, timeout=60, headers=headers, data=data)
+        doc = response.json()
+
+        self._access_token = doc.get('access_token')
+
+        return response
+
+    def _is_bad_token(self, response):
+        return 'invalid_token' in response.headers.get('WWW-Authenticate', '')
+
     def _fetch_stream_object(self):
         headers = self._new_headers()
         url = 'https://api.twitch.tv/helix/streams?user_login={}'.format(self._channel)
         response = requests.get(url, timeout=60, headers=headers)
-        doc = response.json()
-        return doc
+        return response
 
     def _fetch_image_and_save(self, url):
         headers = self._new_headers()

@@ -10,7 +10,7 @@ You will need Python 3.3+.
 
 To start the script, run something similar to this:
 
-        python3 ttvsnap.py verycoolstreamer ./screenshots/ --client-id YOUR_CLIENT_ID_HERE
+        python3 ttvsnap.py verycoolstreamer ./screenshots/ --client-id YOUR_CLIENT_ID_HERE --client-secret-file FILENAME_TO_A_TEXT_FILE_WITH_CLIENT_SECRET --cache-dir PATH_TO_A_DIRECTORY_FOR_TEMP_SECRETS
 
 (Replace `python3` as needed, `python.exe` for example.)
 
@@ -27,4 +27,4 @@ If you are using this script for a website of some sort, you may want to look in
 
 As of writing, Twitch caches preview images for 5 minutes so setting it to low values such as 1 minute may be useless. However, the script will use the `If-Modified-Since` HTTP header to avoid downloading images repeatedly.
 
-Client ID is required after 2016-08-08. You can get a Client ID in the settings page by registering an application and using the Client ID for personal use.  
+Client ID is required after 2016-08-08. You can get a Client ID in the Dev Console page by registering an application and using the Client ID for personal use. Client secret is required after 2020-04-30. Click generate new secret and keep the secret in a safe place.
