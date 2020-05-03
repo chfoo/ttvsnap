@@ -14,7 +14,7 @@ import time
 import requests
 import requests.exceptions
 
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 
 _logger = logging.getLogger()
 
@@ -166,11 +166,11 @@ class Grabber(object):
                 .format(requests_ver=requests.__version__,
                         this_ver=__version__)
         }
-        if self._client_id:
-            headers['Client-ID'] = self._client_id
 
         if self._access_token:
-            headers['Authorization'] = 'Bearer: {token}'.format(token=self._access_token)
+            headers['Authorization'] = 'Bearer {token}'.format(token=self._access_token)
+        elif self._client_id:
+            headers['Client-ID'] = self._client_id
 
         return headers
 
