@@ -129,6 +129,7 @@ class Grabber(object):
                         doc.get('status'), doc.get('error'), doc.get('message'))
                     time.sleep(ERROR_SLEEP_TIME)
                 else:
+                    _logger.info('Got an access token.')
                     self._save_acesss_token()
                 continue
 
@@ -169,7 +170,7 @@ class Grabber(object):
 
         if self._access_token:
             headers['Authorization'] = 'Bearer {token}'.format(token=self._access_token)
-        elif self._client_id:
+        if self._client_id:
             headers['Client-ID'] = self._client_id
 
         return headers
@@ -211,7 +212,9 @@ class Grabber(object):
         return response
 
     def _is_bad_token(self, response):
-        return 'invalid_token' in response.headers.get('WWW-Authenticate', '')
+        doc = response.json()
+        _logger.info("check bad token? %s %s", doc.get('error'), doc.get('message'))
+        return 'invalid_token' in response.headers.get('WWW-Authenticate', '') or doc.get('error') == 'Unauthorized'
 
     def _fetch_stream_object(self):
         headers = self._new_headers()
