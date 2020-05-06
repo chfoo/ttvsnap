@@ -14,7 +14,7 @@ import time
 import requests
 import requests.exceptions
 
-__version__ = '1.1.1'
+__version__ = '1.1.2'
 
 _logger = logging.getLogger()
 
